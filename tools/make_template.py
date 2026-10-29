@@ -47,8 +47,8 @@ FOOTER_H = 26
 LABEL_W = 52
 COLS = 8
 ROW_H = 46
-GRID_COLOR = (0.62, 0.66, 0.74)
-GUIDE_COLOR = (0.80, 0.85, 0.95)  # pale blue baseline: easy to filter out of a scan
+GRID_COLOR = 0.65
+GUIDE_COLOR = 0.82  # pale gray baseline; pure grayscale so printers use black toner only
 
 GRID_X0 = MARGIN
 GRID_TOP = PAGE_H - MARGIN - HEADER_H
@@ -58,7 +58,7 @@ ROWS_PER_PAGE = int((GRID_TOP - GRID_BOTTOM) // ROW_H)
 
 
 def fiducials(c):
-    c.setFillColorRGB(0, 0, 0)
+    c.setFillGray(0)
     inset = 22
     for x in (inset, PAGE_W - inset - FID):
         for y in (inset, PAGE_H - inset - FID):
@@ -66,25 +66,25 @@ def fiducials(c):
 
 
 def header(c, title, page_no, total):
-    c.setFillColorRGB(0, 0, 0)
+    c.setFillGray(0)
     c.setFont("Helvetica-Bold", 14)
     c.drawString(MARGIN, PAGE_H - MARGIN - 12, title)
     c.setFont("Helvetica", 8)
-    c.setFillColorRGB(0.35, 0.35, 0.35)
+    c.setFillGray(0.35)
     c.drawString(
         MARGIN, PAGE_H - MARGIN - 26,
         "Pencil only. Write like you ACTUALLY write - messy is good. Sit on the faint line. "
         "Don't touch the box edges.",
     )
     c.drawRightString(PAGE_W - MARGIN, PAGE_H - MARGIN - 12, f"Page {page_no}/{total}")
-    c.setFillColorRGB(0, 0, 0)
+    c.setFillGray(0)
 
 
 def footer(c, text):
     c.setFont("Helvetica", 7)
-    c.setFillColorRGB(0.5, 0.5, 0.5)
+    c.setFillGray(0.5)
     c.drawCentredString(PAGE_W / 2, MARGIN - 4, text)
-    c.setFillColorRGB(0, 0, 0)
+    c.setFillGray(0)
 
 
 def build_pages():
@@ -107,7 +107,7 @@ def draw_grid_page(c, page, page_no, total, layout_pages):
         y_bot = y_top - ROW_H
 
         # row label (the character itself, big, plus a name for punctuation)
-        c.setFillColorRGB(0.15, 0.15, 0.15)
+        c.setFillGray(0.15)
         c.setFont("Helvetica-Bold", 18)
         c.drawCentredString(GRID_X0 + LABEL_W / 2, y_bot + ROW_H / 2 - 2, ch)
         if ch in PUNCT_NAMES:
@@ -117,12 +117,12 @@ def draw_grid_page(c, page, page_no, total, layout_pages):
         for k in range(COLS):
             x0 = GRID_X0 + LABEL_W + k * CELL_W
             used = k < copies
-            c.setStrokeColorRGB(*GRID_COLOR)
+            c.setStrokeGray(GRID_COLOR)
             c.setLineWidth(0.7 if used else 0.3)
             if used:
                 c.rect(x0, y_bot, CELL_W, ROW_H, stroke=1, fill=0)
                 # baseline guide ~30% up from the bottom of the cell
-                c.setStrokeColorRGB(*GUIDE_COLOR)
+                c.setStrokeGray(GUIDE_COLOR)
                 c.setLineWidth(0.6)
                 c.line(x0 + 3, y_bot + ROW_H * 0.30, x0 + CELL_W - 3, y_bot + ROW_H * 0.30)
                 cells.append({
@@ -140,19 +140,19 @@ def draw_free_page(c, page_no, total, layout_pages):
     lines = []
     c.setFont("Helvetica", 8)
     for prompt in FREE_PROMPTS:
-        c.setFillColorRGB(0.45, 0.45, 0.45)
+        c.setFillGray(0.45)
         c.setFont("Helvetica", 8)
         c.drawString(MARGIN, y, prompt)
         y -= 6
         # two blank writing lines per prompt
         for _ in range(2):
             y -= 34
-            c.setStrokeColorRGB(*GUIDE_COLOR)
+            c.setStrokeGray(GUIDE_COLOR)
             c.setLineWidth(0.8)
             c.line(MARGIN, y, PAGE_W - MARGIN, y)
             lines.append({"prompt": prompt, "baseline_y": y})
         y -= 12
-    c.setFillColorRGB(0, 0, 0)
+    c.setFillGray(0)
     footer(c, "handwriting-font sample sheet")
     layout_pages.append({"page": page_no, "type": "free", "lines": lines})
 
