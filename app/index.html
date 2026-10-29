@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Handwriting</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>My Handwriting</h1>
+  <p id="status" aria-live="polite">Loading your letters…</p>
+</header>
+
+<main>
+  <section class="input">
+    <label for="text" class="sr">Text to write</label>
+    <textarea id="text" spellcheck="false" placeholder="Type something…">Hey!! This is my actual handwriting (kinda). It picks a different version of every letter each time, so no two words match — pretty wild, right?
+
+Try typing your own stuff here and hit Re-roll for a fresh take.</textarea>
+    <p id="unsupported" class="note" hidden></p>
+
+    <div class="buttons">
+      <button id="reroll" type="button">🎲 Re-roll</button>
+      <button id="pdf" type="button">Download PDF</button>
+      <span id="seed" class="note"></span>
+    </div>
+
+    <details id="settings" open>
+      <summary>Settings</summary>
+      <div class="grid">
+        <label>Paper
+          <select id="paper">
+            <option value="lined">Lined notebook</option>
+            <option value="blank">Blank</option>
+            <option value="grid">Grid</option>
+          </select>
+        </label>
+        <label>Page size
+          <select id="size">
+            <option value="letter">US Letter</option>
+            <option value="a4">A4</option>
+          </select>
+        </label>
+        <label>Paper color
+          <select id="tint">
+            <option value="#fcfbf7">White</option>
+            <option value="#f4ecd8">Cream</option>
+            <option value="#f7f1b5">Legal pad</option>
+          </select>
+        </label>
+        <label>Writing tool
+          <select id="pen">
+            <option value="pencil">Pencil</option>
+            <option value="dark">Soft dark pencil</option>
+            <option value="blue">Blue pen</option>
+            <option value="black">Black pen</option>
+          </select>
+        </label>
+        <label>Letter size <output id="o-xh"></output>
+          <input id="xh" type="range" min="5" max="14" step="0.25" value="8.5">
+        </label>
+        <label>Line spacing <output id="o-pitch"></output>
+          <input id="pitch" type="range" min="16" max="48" step="1" value="26">
+        </label>
+        <label>Messiness <output id="o-mess"></output>
+          <input id="mess" type="range" min="0" max="2" step="0.05" value="1">
+        </label>
+        <label>Pencil darkness <output id="o-dark"></output>
+          <input id="dark" type="range" min="0.4" max="2.5" step="0.05" value="1.2">
+        </label>
+        <label>Letter spacing <output id="o-spacing"></output>
+          <input id="spacing" type="range" min="0.5" max="2" step="0.05" value="1">
+        </label>
+        <label>Slant <output id="o-slant"></output>
+          <input id="slant" type="range" min="-12" max="12" step="0.5" value="0">
+        </label>
+        <label class="check"><input id="transparent" type="checkbox"> Transparent background</label>
+      </div>
+    </details>
+
+  </section>
+
+  <section class="preview">
+    <div id="pages"></div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
