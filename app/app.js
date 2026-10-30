@@ -56,6 +56,27 @@
     })));
   }
 
+  // The sample sheets boxed every letter to the same size, so capitals and tall letters came out barely
+  // bigger than small ones. Restore real proportions: scale each character so its height lands on a
+  // target multiple of the x-height (clamped so no single glyph gets distorted).
+  function measureHeights() {
+    for (const list of Object.values(pack.glyphs)) {
+      for (const g of list) g.r = (g.h - 2 * Math.min(g.pad, 2)) / pack.xh;   // this copy's height in x-heights
+    }
+  }
+  const TALL = 'bdfhkl', TALL_PUNCT = '()/&?!@#$%';
+  function charScale(ch, g, o) {
+    const r = g.r;
+    if (!r) return 1;
+    let target, lo, hi;
+    if (TALL.includes(ch)) { target = o.tall; lo = 1; hi = 1.85; }
+    else if (ch >= 'A' && ch <= 'Z') { target = o.caps; lo = 0.85; hi = 1.85; }
+    else if (ch >= '0' && ch <= '9') { target = o.caps * 0.9; lo = 0.85; hi = 1.7; }
+    else if (TALL_PUNCT.includes(ch)) { target = o.caps * 0.9; lo = 0.85; hi = 1.7; }
+    else return 1;
+    return clamp(target / r, lo, hi);
+  }
+
   // ---------------------------------------------------------------- layout
   function readOptions() {
     return {
@@ -70,6 +91,8 @@
       dark: +$('dark').value,
       spacing: +$('spacing').value,
       slant: +$('slant').value,
+      caps: +$('caps').value,
+      tall: +$('tall').value,
       transparent: $('transparent').checked,
       seed: seed,
     };
@@ -120,8 +143,9 @@
         const pool = pack.glyphs[ch];
         if (!pool) { missing.add(ch); continue; }
         const g = pick(ch, pool);
-        const wInk = (g.w - 2 * g.pad) * k;
-        glyphs.push({ g, x, wInk });
+        const cs = charScale(ch, g, o);
+        const wInk = (g.w - 2 * g.pad) * k * cs;
+        glyphs.push({ g, x, wInk, cs });
         x += wInk + Math.max(-0.08 * o.xh, sampleGap(pack.spacing.letter, letterMed, false));
       }
       const last = glyphs[glyphs.length - 1];
@@ -168,7 +192,7 @@
           const sj = 1 + gauss(lr) * 0.025 * o.mess;
           pages[pi].items.push({
             img: gl.g.img,
-            w: gl.g.w * k * sj, h: gl.g.h * k * sj, b: gl.g.b * k * sj,
+            w: gl.g.w * k * gl.cs * sj, h: gl.g.h * k * gl.cs * sj, b: gl.g.b * k * gl.cs * sj,
             cx,
             by: baseY + slope * (cx - marginL) + wordOff + gauss(lr) * 0.22 * jscale * o.mess,
             rot: gauss(lr) * 1.2 * o.mess * Math.PI / 180,
@@ -388,8 +412,8 @@
       note.textContent = `I don't have these characters in your handwriting yet, so I skipped them: ${doc.missing.map((c) => `“${c}”`).join(' ')}`;
     }
     $('seed').textContent = `variation #${seed % 100000}`;
-    for (const id of ['xh', 'pitch', 'mess', 'dark', 'spacing', 'slant']) {
-      $('o-' + id).textContent = $(id).value + (id === 'xh' || id === 'pitch' ? ' pt' : id === 'slant' ? '°' : '');
+    for (const id of ['xh', 'pitch', 'mess', 'dark', 'spacing', 'slant', 'caps', 'tall']) {
+      $('o-' + id).textContent = $(id).value + (id === 'xh' || id === 'pitch' ? ' pt' : id === 'slant' ? '°' : id === 'caps' || id === 'tall' ? '×' : '');
     }
   }
   const schedule = () => { clearTimeout(timer); timer = setTimeout(() => { try { render(); } catch (e) { fail(e); } }, 90); };
@@ -411,7 +435,7 @@
   async function init() {
     setStatus('Loading your letters… 0');
     if (window.matchMedia('(max-width: 800px)').matches) $('settings').open = false;
-    for (const id of ['text', 'paper', 'size', 'tint', 'pen', 'xh', 'pitch', 'mess', 'dark', 'spacing', 'slant', 'transparent']) {
+    for (const id of ['text', 'paper', 'size', 'tint', 'pen', 'xh', 'pitch', 'mess', 'dark', 'spacing', 'slant', 'caps', 'tall', 'transparent']) {
       $(id).addEventListener('input', schedule);
     }
     $('reroll').addEventListener('click', () => { seed = (Math.random() * 1e9) | 0; render(); });
@@ -419,6 +443,7 @@
     try {
       await loadPack();
       const n = Object.values(pack.glyphs).reduce((s, l) => s + l.length, 0);
+      measureHeights();
       render();
       setStatus(`${Object.keys(pack.glyphs).length} characters · ${n} handwriting samples loaded`);
     } catch (e) {
