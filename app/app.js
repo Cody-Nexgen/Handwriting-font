@@ -291,7 +291,19 @@
   }
 
   // ---------------------------------------------------------------- export
-  function download(blob, name) {
+  async function download(blob, name) {
+    // Hosted pages can't start downloads themselves; the `downloads` capability asks the viewer instead.
+    let dl = null;
+    try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
+    if (dl) {
+      try {
+        await dl.save({ filename: name, data: blob });
+        setStatus(`Saved ${name}`);
+      } catch (e) {
+        if (e && e.code !== 'declined') setStatus(`Couldn't save ${name}: ${(e && e.message) || e.code}`);
+      }
+      return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = name;
@@ -305,7 +317,7 @@
   async function exportPng(pageIndex) {
     const c = document.createElement('canvas');
     paintPage(pageIndex, 300, c, readOptions());
-    download(await toBlob(c, 'image/png'), `handwriting-page-${pageIndex + 1}.png`);
+    await download(await toBlob(c, 'image/png'), `handwriting-page-${pageIndex + 1}.png`);
   }
 
   async function exportPdf() {
@@ -316,7 +328,7 @@
       paintPage(i, 200, c, { ...o, transparent: false });
       jpegs.push({ bytes: new Uint8Array(await (await toBlob(c, 'image/jpeg', 0.92)).arrayBuffer()), w: c.width, h: c.height });
     }
-    download(new Blob([makePdf(jpegs, doc.PW, doc.PH)], { type: 'application/pdf' }), 'handwriting.pdf');
+    await download(new Blob([makePdf(jpegs, doc.PW, doc.PH)], { type: 'application/pdf' }), 'handwriting.pdf');
   }
 
   function makePdf(jpegs, PW, PH) {
