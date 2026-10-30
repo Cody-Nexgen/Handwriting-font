@@ -1,0 +1,362 @@
+#!/usr/bin/env python3
+"""Write text in your own handwriting from the command line.
+
+  ./handwrite "Hey, this is my handwriting" -o note.png
+  ./handwrite -f letter.txt -o letter.pdf
+  echo "quick note" | ./handwrite - -o note.png --paper blank --pen blue
+
+Uses the glyph pack built by tools/build_pack.py (default: app/pack). Same layout and
+pencil rendering as the web app; the defaults below are the web app's defaults.
+Output type follows the extension (.png, .jpg, .pdf). Several pages -> note-1.png, note-2.png, ...
+"""
+import argparse
+import json
+import math
+import os
+import sys
+
+import cv2
+import numpy as np
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PAPER_SIZES = {"letter": (612, 792), "a4": (595, 842)}
+TINTS = {"white": (252, 251, 247), "cream": (244, 236, 216), "legal": (247, 241, 181)}
+PENCIL_RGB = (58, 58, 64)
+PENS = {  # colour (None = graphite from the glyphs), darkness multiplier
+    "pencil": (None, 1.0), "dark": (None, 1.9), "blue": ((29, 59, 156), 1.0), "black": ((18, 18, 20), 1.0),
+}
+NORMALIZE = {
+    "’": "'", "‘": "'", "´": "'", "`": "'", "“": '"', "”": '"', "«": '"',
+    "»": '"', "–": "-", "—": "-", "−": "-", "…": "...", "•": "-",
+    "[": "(", "]": ")", "{": "(", "}": ")", "_": "-", " ": " ", "\t": "  ",
+}
+TALL = "bdfhkl"
+TALL_PUNCT = "()/&?!@#$%"
+M32 = 0xFFFFFFFF
+
+
+# ------------------------------------------------------------------ random
+def mulberry32(seed):
+    a = seed & M32
+
+    def rng():
+        nonlocal a
+        a = (a + 0x6D2B79F5) & M32
+        t = ((a ^ (a >> 15)) * (1 | a)) & M32
+        t = ((t + (((t ^ (t >> 7)) * (61 | t)) & M32)) ^ t) & M32
+        return ((t ^ (t >> 14)) & M32) / 4294967296
+
+    return rng
+
+
+def gauss(rng):
+    u = v = 0.0
+    while not u:
+        u = rng()
+    while not v:
+        v = rng()
+    return math.sqrt(-2 * math.log(u)) * math.cos(2 * math.pi * v)
+
+
+def clamp(v, lo, hi):
+    return min(hi, max(lo, v))
+
+
+def median(a):
+    s = sorted(a)
+    return s[len(s) // 2]
+
+
+# -------------------------------------------------------------------- pack
+def load_pack(path):
+    with open(os.path.join(path, "pack.json")) as f:
+        pack = json.load(f)
+    for ch, glyphs in pack["glyphs"].items():
+        for g in glyphs:
+            img = cv2.imread(os.path.join(path, g["f"]), cv2.IMREAD_UNCHANGED)
+            if img is None:
+                sys.exit(f"handwrite: missing glyph image {g['f']} - rebuild with tools/build_pack.py")
+            g["alpha"] = img[..., 3].astype(np.float32) / 255.0
+            g["r"] = (g["h"] - 2 * min(g["pad"], 2)) / pack["xh"]
+    return pack
+
+
+def char_scale(ch, g, o):
+    r = g["r"]
+    if not r:
+        return 1.0
+    if ch in TALL:
+        target, lo, hi = o.tall, 1.0, 1.85
+    elif "A" <= ch <= "Z":
+        target, lo, hi = o.caps, 0.85, 1.85
+    elif "0" <= ch <= "9" or ch in TALL_PUNCT:
+        target, lo, hi = o.caps * 0.9, 0.85, 1.7
+    else:
+        return 1.0
+    return clamp(target / r, lo, hi)
+
+
+# ------------------------------------------------------------------ layout
+def layout(text, o, pack):
+    rng = mulberry32(o.seed)
+    pw, ph = PAPER_SIZES[o.size]
+    k = o.xh / pack["xh"]                     # points per native glyph pixel
+    jscale = o.xh / 8
+    margin_l = 82 if o.paper == "lined" else 64
+    margin_r = 46
+    first_y = 64 + o.pitch
+    per_page = max(1, int((ph - 48 - first_y) // o.pitch) + 1)
+    max_w = pw - margin_l - margin_r
+    letter_med = median(pack["spacing"]["letter"])
+    word_med = median(pack["spacing"]["word"])
+    last_pick, missing = {}, []
+
+    def sample_gap(lst, med, is_word):
+        s = lst[int(rng() * len(lst))]
+        g = med + (s - med) * min(o.mess, 1.5)
+        g = max(g, 0.66) if is_word else min(g, 0.42)
+        return g * o.xh * o.spacing
+
+    def pick(ch, pool):
+        if len(pool) == 1:
+            return pool[0]
+        a, b = last_pick.get(ch, (-1, -1))
+        idx, tries = 0, 0
+        while True:
+            idx = int(rng() * len(pool))
+            tries += 1
+            if not (idx == a or (len(pool) >= 5 and idx == b)) or tries >= 25:
+                break
+        last_pick[ch] = (idx, a)
+        return pool[idx]
+
+    def build_word(s):
+        glyphs, x = [], 0.0
+        for ch in s:
+            pool = pack["glyphs"].get(ch)
+            if not pool:
+                if ch not in missing:
+                    missing.append(ch)
+                continue
+            g = pick(ch, pool)
+            cs = char_scale(ch, g, o)
+            w_ink = (g["w"] - 2 * g["pad"]) * k * cs
+            glyphs.append((g, x, w_ink, cs))
+            x += w_ink + max(-0.08 * o.xh, sample_gap(pack["spacing"]["letter"], letter_med, False))
+        width = glyphs[-1][1] + glyphs[-1][2] if glyphs else 0.0
+        return glyphs, width
+
+    text = "".join(NORMALIZE.get(c, c) for c in text)
+    lines = []
+    for para in text.split("\n"):
+        words = [w for w in para.split(" ") if w]
+        if not words:
+            lines.append([])
+            continue
+        cur, cur_x = [], 0.0
+        for w in words:
+            glyphs, width = build_word(w)
+            if not glyphs:
+                continue
+            gap = sample_gap(pack["spacing"]["word"], word_med, True)
+            if cur and cur_x + gap + width > max_w:
+                lines.append(cur)
+                cur, cur_x = [], 0.0
+            x = cur_x + gap if cur else 0.0
+            cur.append((glyphs, x))
+            cur_x = x + width
+        lines.append(cur)
+
+    pages = []
+    for li, line in enumerate(lines):
+        pi, row = divmod(li, per_page)
+        while len(pages) <= pi:
+            pages.append([])
+        lr = mulberry32((o.seed * 977 + li * 131) & M32)
+        line_y = first_y + row * o.pitch
+        base_y = line_y - (0 if o.paper == "blank" else 0.9 * jscale)
+        slope = gauss(lr) * 0.004 * o.mess
+        indent = gauss(lr) * 1.5 * o.mess
+        word_off, press = 0.0, 1.0
+        for glyphs, x in line:
+            word_off = 0.75 * word_off + gauss(lr) * 0.35 * jscale * o.mess
+            press = clamp(0.8 * press + 0.2 + gauss(lr) * 0.1 * o.mess, 0.7, 1.15)
+            for g, gx, w_ink, cs in glyphs:
+                cx = margin_l + indent + x + gx + w_ink / 2
+                sj = 1 + gauss(lr) * 0.025 * o.mess
+                pages[pi].append({
+                    "g": g, "w": g["w"] * k * cs * sj, "h": g["h"] * k * cs * sj, "b": g["b"] * k * cs * sj,
+                    "cx": cx,
+                    "by": base_y + slope * (cx - margin_l) + word_off + gauss(lr) * 0.22 * jscale * o.mess,
+                    "rot": gauss(lr) * 1.2 * o.mess * math.pi / 180,
+                    "press": clamp(press + gauss(lr) * 0.05 * o.mess, 0.6, 1.2),
+                })
+    if not pages:
+        pages.append([])
+    return {"pw": pw, "ph": ph, "margin_l": margin_l, "first_y": first_y, "pages": pages, "missing": missing}
+
+
+# ------------------------------------------------------------------- paint
+def paper_layer(doc, o, px, w, h):
+    rng = np.random.default_rng(777)
+    tile = 246 + rng.random((256, 256)) * 9 - (rng.random((256, 256)) < 0.015) * 14
+    grain = np.tile(tile, (h // 256 + 1, w // 256 + 1))[:h, :w] / 255.0
+    paper = np.empty((h, w, 3), np.float32)
+    paper[:] = np.array(TINTS[o.tint], np.float32)
+    paper *= grain[..., None]
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    d = np.hypot(xx - w / 2, yy - h / 2)
+    r0, r1 = min(w, h) * 0.35, max(w, h) * 0.78
+    t = np.clip((d - r0) / (r1 - r0), 0, 1)[..., None]
+    paper *= 1 - t * (1 - np.array([226, 220, 206], np.float32) / 255.0)
+
+    def stroke(mask_lines, color, alpha):
+        m = (mask_lines.astype(np.float32) / 255.0 * alpha)[..., None]
+        paper[:] = paper * (1 - m) + np.array(color, np.float32) * m
+
+    width = max(1, int(round(max(0.7, 0.55 * px))))
+    lines = np.zeros((h, w), np.uint8)
+    if o.paper == "lined":
+        y0 = doc["first_y"] - int((doc["first_y"] - 30) // o.pitch) * o.pitch
+        y = y0
+        while y < doc["ph"] - 24:
+            cv2.line(lines, (0, int(y * px)), (w, int(y * px)), 255, width, cv2.LINE_AA)
+            y += o.pitch
+        stroke(lines, (105, 155, 214), 0.55)
+        red = np.zeros((h, w), np.uint8)
+        xm = int((doc["margin_l"] - 14) * px)
+        cv2.line(red, (xm, 0), (xm, h), 255, width, cv2.LINE_AA)
+        stroke(red, (214, 106, 106), 0.6)
+    elif o.paper == "grid":
+        s = o.pitch / 2
+        x = 0.0
+        while x < doc["pw"]:
+            cv2.line(lines, (int(x * px), 0), (int(x * px), h), 255, width, cv2.LINE_AA)
+            x += s
+        y = 0.0
+        while y < doc["ph"]:
+            cv2.line(lines, (0, int(y * px)), (w, int(y * px)), 255, width, cv2.LINE_AA)
+            y += s
+        stroke(lines, (105, 155, 214), 0.35)
+    return paper
+
+
+def paint_page(items, doc, o, pack, dpi):
+    px = dpi / 72.0
+    w, h = int(round(doc["pw"] * px)), int(round(doc["ph"] * px))
+    ink = np.zeros((h, w), np.float32)
+    pen_color, pen_dark = PENS[o.pen]
+    shear = math.tan(math.radians(o.slant))
+    k = o.xh / pack["xh"]
+    boost = clamp((1 / (k * px)) ** 0.55, 1, 3.2)   # downscaling thins pencil; compensate
+    for it in items:
+        gw, gh = max(1, int(round(it["w"] * px))), max(1, int(round(it["h"] * px)))
+        src = it["g"]["alpha"]
+        interp = cv2.INTER_AREA if gw < src.shape[1] else cv2.INTER_LINEAR
+        a = cv2.resize(src, (gw, gh), interpolation=interp)
+        c, s = math.cos(it["rot"]), math.sin(it["rot"])
+        bpx = it["b"] * px
+        m = np.array([
+            [c, -c * shear - s, it["cx"] * px - c * gw / 2 + (c * shear + s) * bpx],
+            [s, c - s * shear, it["by"] * px - s * gw / 2 + (s * shear - c) * bpx],
+        ], np.float64)
+        corners = np.array([[0, 0, 1], [gw, 0, 1], [0, gh, 1], [gw, gh, 1]], np.float64) @ m.T
+        x0, y0 = int(math.floor(corners[:, 0].min())) - 1, int(math.floor(corners[:, 1].min())) - 1
+        x1, y1 = int(math.ceil(corners[:, 0].max())) + 1, int(math.ceil(corners[:, 1].max())) + 1
+        m[0, 2] -= x0
+        m[1, 2] -= y0
+        tile = cv2.warpAffine(a, m, (x1 - x0, y1 - y0), flags=cv2.INTER_LINEAR, borderValue=0)
+        sx0, sy0 = max(0, -x0), max(0, -y0)
+        dx0, dy0 = max(0, x0), max(0, y0)
+        dx1, dy1 = min(w, x1), min(h, y1)
+        if dx1 <= dx0 or dy1 <= dy0:
+            continue
+        tile = tile[sy0:sy0 + (dy1 - dy0), sx0:sx0 + (dx1 - dx0)]
+        gain, eff = min(5.0, o.dark * pen_dark * boost * it["press"]), np.zeros_like(tile)
+        g = gain
+        while g > 0.02:
+            eff = eff + tile * min(1.0, g) * (1 - eff)
+            g -= 1
+        region = ink[dy0:dy1, dx0:dx1]
+        ink[dy0:dy1, dx0:dx1] = region + eff * (1 - region)
+
+    rng = np.random.default_rng(12345)       # graphite grain
+    gt = 0.5 + rng.random((256, 256)) * 0.5 - (rng.random((256, 256)) < 0.04) * 0.35
+    ink *= np.clip(np.tile(gt, (h // 256 + 1, w // 256 + 1))[:h, :w], 0, 1).astype(np.float32)
+    col = np.array(pen_color or PENCIL_RGB, np.float32)
+    if o.transparent:
+        out = np.zeros((h, w, 4), np.uint8)
+        out[..., :3] = col.astype(np.uint8)[::-1]          # BGR for cv2
+        out[..., 3] = (ink * 255).astype(np.uint8)
+        return out
+    paper = paper_layer(doc, o, px, w, h)
+    rgb = paper * (1 - ink[..., None] * (1 - col / 255.0))   # multiply blend
+    return np.clip(rgb, 0, 255).astype(np.uint8)[..., ::-1]    # to BGR
+
+
+# --------------------------------------------------------------------- cli
+def parse_args(argv):
+    ap = argparse.ArgumentParser(prog="handwrite", description="Write text in your own handwriting.")
+    ap.add_argument("text", nargs="?", help='text to write, or "-" to read stdin')
+    ap.add_argument("-f", "--file", help="read the text from a file")
+    ap.add_argument("-o", "--out", default="handwriting.png", help="output .png/.jpg/.pdf (default handwriting.png)")
+    ap.add_argument("--pack", default=os.path.join(HERE, "app", "pack"), help="glyph pack folder")
+    ap.add_argument("--paper", choices=["lined", "blank", "grid"], default="lined")
+    ap.add_argument("--size", choices=list(PAPER_SIZES), default="letter", help="page size")
+    ap.add_argument("--tint", choices=list(TINTS), default="white", help="paper colour")
+    ap.add_argument("--pen", choices=list(PENS), default="pencil", help="writing tool")
+    ap.add_argument("--xh", type=float, default=8.5, help="letter size: x-height in pt")
+    ap.add_argument("--pitch", type=float, default=26, help="line spacing in pt")
+    ap.add_argument("--mess", type=float, default=0.0, help="messiness 0-2")
+    ap.add_argument("--dark", type=float, default=0.6, help="pencil darkness")
+    ap.add_argument("--caps", type=float, default=1.7, help="capital height in x-heights")
+    ap.add_argument("--tall", type=float, default=1.55, help="b d f h k l height in x-heights")
+    ap.add_argument("--spacing", type=float, default=1.0, help="letter spacing multiplier")
+    ap.add_argument("--slant", type=float, default=0.0, help="slant in degrees")
+    ap.add_argument("--transparent", action="store_true", help="transparent PNG, no paper")
+    ap.add_argument("--seed", type=int, default=None, help="same seed = same page")
+    ap.add_argument("--dpi", type=int, default=300)
+    o = ap.parse_args(argv)
+    if o.file:
+        o.text = open(o.file, encoding="utf-8").read()
+    elif o.text == "-":
+        o.text = sys.stdin.read()
+    if not o.text or not o.text.strip():
+        ap.error("no text given (pass text, -f FILE, or - for stdin)")
+    if o.seed is None:
+        o.seed = int.from_bytes(os.urandom(4), "big") % 1_000_000_000
+    return o
+
+
+def main(argv=None):
+    o = parse_args(argv if argv is not None else sys.argv[1:])
+    if not os.path.exists(os.path.join(o.pack, "pack.json")):
+        sys.exit(f"handwrite: no glyph pack at {o.pack}. Build it first: python3 tools/build_pack.py")
+    pack = load_pack(o.pack)
+    doc = layout(o.text, o, pack)
+    if doc["missing"]:
+        print("handwrite: no handwriting for these characters, skipped: " + " ".join(doc["missing"]), file=sys.stderr)
+
+    ext = os.path.splitext(o.out)[1].lower()
+    if ext not in (".png", ".jpg", ".jpeg", ".pdf"):
+        sys.exit("handwrite: output must end in .png, .jpg or .pdf")
+    if ext == ".pdf" and o.transparent:
+        print("handwrite: PDFs can't be transparent; drawing the paper", file=sys.stderr)
+        o.transparent = False
+
+    rendered = [paint_page(items, doc, o, pack, o.dpi) for items in doc["pages"]]
+    if ext == ".pdf":
+        from PIL import Image
+        imgs = [Image.fromarray(r[..., ::-1]) for r in rendered]
+        imgs[0].save(o.out, "PDF", resolution=o.dpi, save_all=True, append_images=imgs[1:])
+        paths = [o.out]
+    else:
+        stem = os.path.splitext(o.out)[0]
+        paths = [o.out] if len(rendered) == 1 else [f"{stem}-{i + 1}{ext}" for i in range(len(rendered))]
+        for p, r in zip(paths, rendered):
+            cv2.imwrite(p, r)
+    print(f"wrote {', '.join(paths)} ({len(rendered)} page{'s' if len(rendered) != 1 else ''}, seed {o.seed})")
+
+
+if __name__ == "__main__":
+    main()

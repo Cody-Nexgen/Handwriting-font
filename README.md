@@ -14,6 +14,18 @@ sample sheets, randomized per letter, drawn on notebook paper.
    learns letter/word spacing from the sentences page -> `app/pack/`.
 4. `python3 tools/build_app.py` - bundles everything into one offline file, `dist/handwriting.html`.
 
+## Command line
+
+```
+./handwrite "Hey, this is my handwriting" -o note.png
+./handwrite -f letter.txt -o letter.pdf          # several pages -> one PDF
+echo "quick note" | ./handwrite - -o note.png --paper blank --pen blue
+./handwrite --help                                # every setting, same as the web app
+```
+
+Defaults match the web app (lined notebook, US Letter, pencil, 8.5 pt, messiness 0, darkness 0.6,
+capitals 1.7x, tall letters 1.55x). Use `--seed N` to get the same page again. Needs the glyph pack from step 3.
+
 `app/` can also be served directly (`python3 -m http.server -d app`) while developing.
 
 `data/`, `app/pack/` and `dist/` hold personal handwriting and are gitignored.
