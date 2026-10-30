@@ -40,18 +40,20 @@
   const median = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 
   // ----------------------------------------------------------------- pack
+  function setStatus(msg) { $('status').textContent = msg; }
+
   async function loadPack() {
     const inline = window.__PACK_INLINE__;
     pack = inline || await (await fetch('pack/pack.json')).json();
-    const loads = [];
-    for (const list of Object.values(pack.glyphs)) {
-      for (const g of list) {
-        g.img = new Image();
-        g.img.src = inline ? g.data : 'pack/' + g.f;
-        loads.push(g.img.decode());
-      }
-    }
-    await Promise.all(loads);
+    const all = [];
+    for (const list of Object.values(pack.glyphs)) for (const g of list) all.push(g);
+    let done = 0;
+    await Promise.all(all.map((g) => new Promise((resolve, reject) => {
+      g.img = new Image();
+      g.img.onload = () => { done++; if (done % 40 === 0) setStatus(`Loading your letters… ${done}/${all.length}`); resolve(); };
+      g.img.onerror = () => reject(new Error('a glyph image failed to load'));
+      g.img.src = inline ? g.data : 'pack/' + g.f;
+    })));
   }
 
   // ---------------------------------------------------------------- layout
@@ -378,24 +380,38 @@
       $('o-' + id).textContent = $(id).value + (id === 'xh' || id === 'pitch' ? ' pt' : id === 'slant' ? '°' : '');
     }
   }
-  const schedule = () => { clearTimeout(timer); timer = setTimeout(render, 90); };
+  const schedule = () => { clearTimeout(timer); timer = setTimeout(() => { try { render(); } catch (e) { fail(e); } }, 90); };
+
+  function fail(e) {
+    setStatus('Something broke: ' + (e && e.message ? e.message : e));
+    console.error(e);
+  }
+  window.addEventListener('error', (ev) => fail(ev.error || ev.message));
+  window.addEventListener('unhandledrejection', (ev) => fail(ev.reason));
+
+  function guarded(fn) {
+    return (...a) => {
+      if (!pack || !doc) { setStatus('Still loading your letters — give it a sec, then try again.'); return; }
+      try { return fn(...a); } catch (e) { fail(e); }
+    };
+  }
 
   async function init() {
+    setStatus('Loading your letters… 0');
     if (window.matchMedia('(max-width: 800px)').matches) $('settings').open = false;
     for (const id of ['text', 'paper', 'size', 'tint', 'pen', 'xh', 'pitch', 'mess', 'dark', 'spacing', 'slant', 'transparent']) {
       $(id).addEventListener('input', schedule);
     }
     $('reroll').addEventListener('click', () => { seed = (Math.random() * 1e9) | 0; render(); });
-    $('pdf').addEventListener('click', exportPdf);
+    $('pdf').addEventListener('click', guarded(() => exportPdf().catch(fail)));
     try {
       await loadPack();
+      const n = Object.values(pack.glyphs).reduce((s, l) => s + l.length, 0);
+      render();
+      setStatus(`${Object.keys(pack.glyphs).length} characters · ${n} handwriting samples loaded`);
     } catch (e) {
-      $('status').textContent = 'Could not load your glyph pack: ' + e.message;
-      return;
+      fail(e);
     }
-    const n = Object.values(pack.glyphs).reduce((s, l) => s + l.length, 0);
-    $('status').textContent = `${Object.keys(pack.glyphs).length} characters · ${n} handwriting samples loaded`;
-    render();
   }
   init();
 })();
