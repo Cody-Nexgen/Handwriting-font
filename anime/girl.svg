@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b1055"/><stop offset="0.6" stop-color="#7b3fa0"/><stop offset="1" stop-color="#ff7eb3"/></linearGradient>
+<linearGradient id="hair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8fc7"/><stop offset="0.6" stop-color="#c46bff"/><stop offset="1" stop-color="#6a5cff"/></linearGradient>
+<linearGradient id="hairD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e06ab0"/><stop offset="1" stop-color="#4a3fd0"/></linearGradient>
+<radialGradient id="iris" cx="0.5" cy="0.35" r="0.7"><stop offset="0" stop-color="#9ff3ff"/><stop offset="0.5" stop-color="#3a8dff"/><stop offset="1" stop-color="#2a1a8a"/></radialGradient>
+<linearGradient id="skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe6da"/><stop offset="1" stop-color="#ffd0c0"/></linearGradient>
+<linearGradient id="jacket" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1b2f"/><stop offset="1" stop-color="#0d0d1a"/></linearGradient>
+<filter id="glow"><feGaussianBlur stdDeviation="4"/></filter>
+</defs>
+<rect width="600" height="800" fill="url(#bg)"/>
+<circle cx="300" cy="360" r="260" fill="#ffffff" opacity="0.08" filter="url(#glow)"/>
+<g fill="#fff" opacity="0.9">
+<path d="M70 120l6 16 16 6-16 6-6 16-6-16-16-6 16-6z"/><path d="M520 90l5 13 13 5-13 5-5 13-5-13-13-5 13-5z"/><path d="M540 420l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/><path d="M50 520l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/>
+<circle cx="130" cy="60" r="3"/><circle cx="470" cy="200" r="2.5"/><circle cx="90" cy="300" r="2"/><circle cx="560" cy="300" r="3"/>
+</g>
+<!-- back hair -->
+<path d="M300 70C150 70 105 190 120 330C130 440 95 560 85 700C140 740 200 700 215 600L385 600C400 700 460 740 515 700C505 560 470 440 480 330C495 190 450 70 300 70Z" fill="url(#hairD)"/>
+<!-- body / jacket -->
+<path d="M170 800L185 640C195 600 240 585 300 585C360 585 405 600 415 640L430 800Z" fill="url(#jacket)"/>
+<path d="M270 585L300 700L330 585Z" fill="#f4f4ff"/>
+<path d="M300 600L300 800" stroke="#ff5fa2" stroke-width="3"/>
+<path d="M185 640L170 800M415 640L430 800" stroke="#ff5fa2" stroke-width="4"/>
+<!-- neck -->
+<path d="M268 500L268 595C280 625 320 625 332 595L332 500Z" fill="#f5c3b2"/>
+<path d="M268 560C285 585 315 585 332 560L332 595C320 625 280 625 268 595Z" fill="#e8ab9a" opacity="0.7"/>
+<!-- ear -->
+<ellipse cx="172" cy="360" rx="14" ry="22" fill="#ffd8cb"/><ellipse cx="428" cy="360" rx="14" ry="22" fill="#ffd8cb"/>
+<!-- face -->
+<path d="M180 300C180 190 235 150 300 150C365 150 420 190 420 300C420 400 380 500 300 520C220 500 180 400 180 300Z" fill="url(#skin)"/>
+<!-- blush -->
+<ellipse cx="232" cy="418" rx="34" ry="14" fill="#ff7a9e" opacity="0.4"/><ellipse cx="368" cy="418" rx="34" ry="14" fill="#ff7a9e" opacity="0.4"/>
+<!-- eyes -->
+<g id="eyeL">
+<path d="M207 345C225 325 275 322 288 350C280 400 235 415 215 385C208 372 205 358 207 345Z" fill="#fff"/>
+<ellipse cx="250" cy="375" rx="31" ry="40" fill="url(#iris)"/>
+<ellipse cx="250" cy="382" rx="15" ry="21" fill="#10103a"/>
+<path d="M207 345C225 325 275 322 288 350C270 338 230 340 207 345Z" fill="#2a1030" opacity="0.5"/>
+<ellipse cx="238" cy="358" rx="9" ry="12" fill="#fff"/><circle cx="266" cy="395" r="5" fill="#fff" opacity="0.9"/>
+<path d="M203 350C220 322 278 316 292 346" stroke="#1a0a24" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M203 350L190 338M215 336L205 320" stroke="#1a0a24" stroke-width="4" stroke-linecap="round"/>
+</g>
+<g transform="translate(600,0) scale(-1,1)">
+<path d="M207 345C225 325 275 322 288 350C280 400 235 415 215 385C208 372 205 358 207 345Z" fill="#fff"/>
+<ellipse cx="250" cy="375" rx="31" ry="40" fill="url(#iris)"/>
+<ellipse cx="250" cy="382" rx="15" ry="21" fill="#10103a"/>
+<path d="M207 345C225 325 275 322 288 350C270 338 230 340 207 345Z" fill="#2a1030" opacity="0.5"/>
+<ellipse cx="238" cy="358" rx="9" ry="12" fill="#fff"/><circle cx="266" cy="395" r="5" fill="#fff" opacity="0.9"/>
+<path d="M203 350C220 322 278 316 292 346" stroke="#1a0a24" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M203 350L190 338M215 336L205 320" stroke="#1a0a24" stroke-width="4" stroke-linecap="round"/>
+</g>
+<!-- brows -->
+<path d="M212 312C232 298 262 298 280 308" stroke="#b04a98" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M388 312C368 298 338 298 320 308" stroke="#b04a98" stroke-width="5" fill="none" stroke-linecap="round"/>
+<!-- nose + mouth -->
+<path d="M298 425Q303 431 308 427" stroke="#d98a80" stroke-width="3" fill="none" stroke-linecap="round"/>
+<path d="M272 462Q300 488 330 458" stroke="#c0405a" stroke-width="4" fill="none" stroke-linecap="round"/>
+<path d="M283 468Q300 490 322 466Q302 476 283 468Z" fill="#ff7a8a"/>
+<path d="M325 460l8 -6" stroke="#c0405a" stroke-width="3" stroke-linecap="round"/>
+<!-- bangs -->
+<path d="M300 100C215 100 168 170 175 300C185 250 195 215 225 200C235 235 255 255 285 262C292 220 298 170 300 100Z" fill="url(#hair)"/>
+<path d="M300 100C385 100 432 170 425 300C415 250 405 215 375 200C365 235 345 255 315 262C308 220 302 170 300 100Z" fill="url(#hair)"/>
+<path d="M300 100C260 120 235 160 232 205C262 195 292 175 300 100Z" fill="#ffb3dc" opacity="0.7"/>
+<path d="M300 100C340 120 365 160 368 205C338 195 308 175 300 100Z" fill="#ffb3dc" opacity="0.7"/>
+<!-- side locks -->
+<path d="M175 300C160 380 170 470 150 560C190 540 205 450 200 360Z" fill="url(#hair)"/>
+<path d="M425 300C440 380 430 470 450 560C410 540 395 450 400 360Z" fill="url(#hair)"/>
+<!-- hair shine -->
+<path d="M200 150C240 112 330 108 395 150" stroke="#fff" stroke-width="6" fill="none" opacity="0.5" stroke-linecap="round"/>
+<!-- cat headphones -->
+<path d="M165 260C150 120 450 120 435 260" stroke="#222" stroke-width="12" fill="none" stroke-linecap="round"/>
+<ellipse cx="160" cy="290" rx="22" ry="36" fill="#222"/><ellipse cx="160" cy="290" rx="12" ry="24" fill="#ff5fa2"/>
+<ellipse cx="440" cy="290" rx="22" ry="36" fill="#222"/><ellipse cx="440" cy="290" rx="12" ry="24" fill="#ff5fa2"/>
+<path d="M200 135L190 80L245 118Z" fill="#222"/><path d="M400 135L410 80L355 118Z" fill="#222"/>
+<path d="M205 125L197 95L230 118Z" fill="#ff5fa2"/><path d="M395 125L403 95L370 118Z" fill="#ff5fa2"/>
+<!-- star clip -->
+<path d="M240 190l5 11 12 2-9 8 2 12-10-6-10 6 2-12-9-8 12-2z" fill="#ffe36e" stroke="#fff" stroke-width="1.5"/>
+</svg>
